@@ -35,7 +35,7 @@ Projet personnel, écrit intégralement à la main.
 | **Qualité** | JUnit 5 · Mockito · Reactor Test · Vitest · SonarCloud · JaCoCo |
 | **Livraison** | GitHub Actions · semantic-release · GHCR |
 
-**Tout est non bloquant de bout en bout** : aucun appel bloquant, aucun `.block()`, aucun pool de threads par requête. Les quatre bases sont accédées par des drivers réactifs.
+**Les chemins de requête sont non bloquants de bout en bout** : pas de `.block()`, pas de pool de threads par requête, et les quatre bases sont accédées par des drivers réactifs. La seule exception est un `DatabaseSeeder` de jeu d'essai, actif uniquement en profil local.
 
 ---
 
@@ -85,7 +85,7 @@ graph TB
 
 ### Architecture interne — hexagonale
 
-Les cinq services Java suivent la même structure. Le domaine ne connaît ni Spring, ni la base, ni le protocole.
+Les quatre services métier suivent la même structure. Le domaine ne connaît ni Spring, ni la base, ni le protocole. La gateway en est exclue : elle route, elle n'a pas de domaine.
 
 ```
                     ┌─────────────────────────────────┐
@@ -325,7 +325,7 @@ Le versionnement est assuré par **semantic-release** à partir des Conventional
 
 ## Ce que ce projet m'a appris
 
-**Le réactif est contagieux, et c'est le but.** Un seul appel bloquant dans une chaîne suffit à immobiliser un thread de l'event loop et à annuler le bénéfice de tout le reste. Écrire cinq services sans jamais recourir à `.block()` oblige à penser en flux plutôt qu'en séquence d'instructions.
+**Le réactif est contagieux, et c'est le but.** Un seul appel bloquant dans une chaîne suffit à immobiliser un thread de l'event loop et à annuler le bénéfice de tout le reste. Écrire quatre services métier sans jamais recourir à `.block()` sur un chemin de requête oblige à penser en flux plutôt qu'en séquence d'instructions.
 
 **Ne jamais souscrire à un flux que le framework doit piloter.** Appeler `.subscribe()` soi-même dans un consumer Spring Cloud Stream retire au framework la gestion de l'acquittement et de la reprise : les erreurs deviennent invisibles et les messages sont perdus en silence. C'est l'erreur que j'ai mis le plus longtemps à comprendre.
 
