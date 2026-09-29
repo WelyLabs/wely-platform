@@ -44,19 +44,19 @@ Projet personnel, écrit intégralement à la main.
 ```mermaid
 graph TB
     subgraph client["Navigateur"]
-        FE["<b>calendar-app</b><br/>Angular 21"]
+        FE["<b>wely-web</b><br/>Angular 21"]
     end
 
     subgraph edge["Edge"]
-        GW["<b>calendar-gateway</b> :8081<br/>Spring Cloud Gateway<br/><i>validation JWT · CORS · routage</i>"]
+        GW["<b>wely-gateway</b> :8081<br/>Spring Cloud Gateway<br/><i>validation JWT · CORS · routage</i>"]
         KC["<b>Keycloak</b> :8080<br/><i>OIDC + BusinessIdMapper</i>"]
     end
 
     subgraph services["Services métier"]
-        U["<b>calendar-users-api</b> :8082<br/><i>profils · identité</i>"]
-        S["<b>calendar-social-api</b> :8083<br/><i>graphe d'amitié</i>"]
-        C["<b>calendar-chat-api</b> :8084<br/><i>messagerie RSocket</i>"]
-        E["<b>calendar-events-api</b> :8086<br/><i>événements · feed</i>"]
+        U["<b>wely-users</b> :8082<br/><i>profils · identité</i>"]
+        S["<b>wely-social</b> :8083<br/><i>graphe d'amitié</i>"]
+        C["<b>wely-chat</b> :8084<br/><i>messagerie RSocket</i>"]
+        E["<b>wely-events</b> :8086<br/><i>événements · feed</i>"]
     end
 
     subgraph data["Persistance"]
@@ -134,12 +134,12 @@ Le problème : Keycloak connaît un utilisateur par son UUID d'IdP, l'applicatio
 
 ```mermaid
 sequenceDiagram
-    participant FE as calendar-app
+    participant FE as wely-web
     participant KC as Keycloak
     participant M as BusinessIdMapper
-    participant U as calendar-users-api
+    participant U as wely-users
     participant K as Kafka
-    participant S as calendar-social-api
+    participant S as wely-social
 
     FE->>KC: authentification OIDC
     KC->>M: émission du token
@@ -157,7 +157,7 @@ sequenceDiagram
     Note over FE,U: toute requête suivante porte l'identité métier
 ```
 
-Un **mapper de protocole Keycloak custom** ([`BusinessIdMapper`](calendar-app-identity-service-config/plugins/business-id-mapper/)) injecte l'identifiant métier directement dans le token. Les services lisent `jwt.getClaimAsString("businessId")` et ne font jamais confiance à un identifiant reçu du client.
+Un **mapper de protocole Keycloak custom** ([`BusinessIdMapper`](wely-identity/plugins/business-id-mapper/)) injecte l'identifiant métier directement dans le token. Les services lisent `jwt.getClaimAsString("businessId")` et ne font jamais confiance à un identifiant reçu du client.
 
 La création de l'utilisateur est donc **paresseuse** : elle se déclenche à la première émission de token, pas via un webhook ni un batch de synchronisation.
 
@@ -205,10 +205,10 @@ Charger une conversation = lire **un** document (le dernier bucket). Remonter l'
 
 ### Kafka pour la cohérence inter-services
 
-`calendar-users-api` ne connaît pas `calendar-social-api`. Il publie `USER_CREATED`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
+`wely-users` ne connaît pas `wely-social`. Il publie `USER_CREATED`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
 
 ```
-calendar-users-api ──▶ USER_CREATED ──▶ calendar-social-api ──▶ nœud Neo4j
+wely-users ──▶ USER_CREATED ──▶ wely-social ──▶ nœud Neo4j
      (Postgres)          (topic Kafka)                             (graphe)
 ```
 
@@ -224,13 +224,13 @@ Le projet est réparti en 8 dépôts indépendants, chacun avec son CI/CD et son
 
 | Dépôt | Rôle |
 |---|---|
-| [`calendar-app`](https://github.com/banettetheo/calendar-app) | Frontend Angular 21 |
-| [`calendar-gateway`](https://github.com/banettetheo/calendar-gateway) | API Gateway — point d'entrée unique |
-| [`calendar-users-api`](https://github.com/banettetheo/calendar-users-api) | Profils, identité, producteur Kafka |
-| [`calendar-social-api`](https://github.com/banettetheo/calendar-social-api) | Graphe social Neo4j, consommateur Kafka |
-| [`calendar-chat-api`](https://github.com/banettetheo/calendar-chat-api) | Messagerie temps réel RSocket |
-| [`calendar-events-api`](https://github.com/banettetheo/calendar-events-api) | Événements et abonnements |
-| [`calendar-app-identity-service-config`](https://github.com/banettetheo/calendar-app-identity-service-config) | Realm Keycloak + plugin `BusinessIdMapper` |
+| [`wely-web`](https://github.com/WelyLabs/wely-web) | Frontend Angular 21 |
+| [`wely-gateway`](https://github.com/WelyLabs/wely-gateway) | API Gateway — point d'entrée unique |
+| [`wely-users`](https://github.com/WelyLabs/wely-users) | Profils, identité, producteur Kafka |
+| [`wely-social`](https://github.com/WelyLabs/wely-social) | Graphe social Neo4j, consommateur Kafka |
+| [`wely-chat`](https://github.com/WelyLabs/wely-chat) | Messagerie temps réel RSocket |
+| [`wely-events`](https://github.com/WelyLabs/wely-events) | Événements et abonnements |
+| [`wely-identity`](https://github.com/WelyLabs/wely-identity) | Realm Keycloak + plugin `BusinessIdMapper` |
 | [`wely-gitops-infra`](https://github.com/WelyLabs/wely-gitops-infra) | Manifestes Kustomize, applications ArgoCD |
 
 Chaque dépôt a son propre README détaillant son architecture interne, ses endpoints et sa configuration.
@@ -277,15 +277,15 @@ docker compose up -d      # Keycloak, avec import automatique du realm
 Puis chaque service, avec le profil `dev` :
 
 ```bash
-cd calendar-gateway   && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
-cd calendar-users-api && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+cd wely-gateway   && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+cd wely-users && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 # … idem pour social, chat, events
 ```
 
 Et le frontend :
 
 ```bash
-cd calendar-app
+cd wely-web
 npm ci --legacy-peer-deps
 npm start                 # http://localhost:4200
 ```
@@ -297,10 +297,10 @@ npm start                 # http://localhost:4200
 | 4200 | Frontend |
 | 8080 | Keycloak |
 | 8081 | Gateway |
-| 8082 | calendar-users-api |
-| 8083 | calendar-social-api |
-| 8084 | calendar-chat-api (HTTP + RSocket) |
-| 8086 | calendar-events-api |
+| 8082 | wely-users |
+| 8083 | wely-social |
+| 8084 | wely-chat (HTTP + RSocket) |
+| 8086 | wely-events |
 
 ---
 
