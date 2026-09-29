@@ -53,10 +53,10 @@ graph TB
     end
 
     subgraph services["Services métier"]
-        U["<b>users-api</b> :8082<br/><i>profils · identité</i>"]
-        S["<b>social-api</b> :8083<br/><i>graphe d'amitié</i>"]
-        C["<b>chat-api</b> :8084<br/><i>messagerie RSocket</i>"]
-        E["<b>events-api</b> :8086<br/><i>événements · feed</i>"]
+        U["<b>calendar-users-api</b> :8082<br/><i>profils · identité</i>"]
+        S["<b>calendar-social-api</b> :8083<br/><i>graphe d'amitié</i>"]
+        C["<b>calendar-chat-api</b> :8084<br/><i>messagerie RSocket</i>"]
+        E["<b>calendar-events-api</b> :8086<br/><i>événements · feed</i>"]
     end
 
     subgraph data["Persistance"]
@@ -137,9 +137,9 @@ sequenceDiagram
     participant FE as calendar-app
     participant KC as Keycloak
     participant M as BusinessIdMapper
-    participant U as users-api
+    participant U as calendar-users-api
     participant K as Kafka
-    participant S as social-api
+    participant S as calendar-social-api
 
     FE->>KC: authentification OIDC
     KC->>M: émission du token
@@ -205,11 +205,11 @@ Charger une conversation = lire **un** document (le dernier bucket). Remonter l'
 
 ### Kafka pour la cohérence inter-services
 
-`users-api` ne connaît pas `social-api`. Il publie `USER_CREATED`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
+`calendar-users-api` ne connaît pas `calendar-social-api`. Il publie `USER_CREATED`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
 
 ```
-users-api ──▶ USER_CREATED ──▶ social-api ──▶ nœud Neo4j
- (Postgres)     (topic Kafka)                    (graphe)
+calendar-users-api ──▶ USER_CREATED ──▶ calendar-social-api ──▶ nœud Neo4j
+     (Postgres)          (topic Kafka)                             (graphe)
 ```
 
 ### RSocket plutôt que WebSocket brut
@@ -297,10 +297,10 @@ npm start                 # http://localhost:4200
 | 4200 | Frontend |
 | 8080 | Keycloak |
 | 8081 | Gateway |
-| 8082 | users-api |
-| 8083 | social-api |
-| 8084 | chat-api (HTTP + RSocket) |
-| 8086 | events-api |
+| 8082 | calendar-users-api |
+| 8083 | calendar-social-api |
+| 8084 | calendar-chat-api (HTTP + RSocket) |
+| 8086 | calendar-events-api |
 
 ---
 
