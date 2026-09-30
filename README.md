@@ -348,7 +348,7 @@ Ce projet est un terrain d'apprentissage ; ces points sont identifiés et suivis
 | **Pas de pagination sur la recherche d'utilisateurs** | La requête Cypher parcourt tous les nœuds `User` et le filtrage est fait côté client. À remplacer par une recherche serveur paginée et indexée. |
 | **Pas de tests d'intégration** | Les quatre bases et Kafka sont mockés. Les requêtes Cypher et R2DBC ne sont jamais vérifiées contre un vrai moteur. Testcontainers est le prochain chantier. |
 | **Pas de health checks ni de limites de ressources** | Actuator absent, pas de `livenessProbe`/`readinessProbe`, pas de `resources` dans les manifestes. |
-| **Pas de résilience à la gateway** | Retry simple, mais ni circuit breaker ni rate limiting. |
+| **Les seuils de résilience de la gateway sont uniformes** | Un circuit breaker Resilience4j et un quota Redis par appelant protègent les cinq routes, mais avec la même configuration pour toutes — alors que `wely-social` interroge Neo4j et `wely-users` PostgreSQL, dont les latences normales diffèrent. À différencier quand il existera des mesures. |
 | **Pas d'outbox transactionnel** | Si la publication de `USER_CREATED` échoue après le commit Postgres, l'utilisateur existe sans nœud social et rien ne rattrape. |
 | **Démarrage local** | Le chemin complet passe par un Kubernetes local ; le `docker-compose.yml` ne lance que Keycloak. Un compose complet reste à écrire pour ceux qui n'ont pas de cluster. |
 
