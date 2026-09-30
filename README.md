@@ -332,14 +332,19 @@ nouveau code tombe sous 80 %, ou qui dégrade la note de sécurité, ne peut pas
 552 tests, exécutés à chaque push. Aucun test d'intégration : les quatre bases et Kafka sont
 doublés, ce qui est la limite connue la plus coûteuse de ce projet (voir plus bas).
 
-| Service | Tests | Couverture de lignes |
-|---|---|---|
-| `wely-gateway` | 26 | 100 % |
-| `wely-users` | 76 | 98,9 % |
-| `wely-events` | 43 | 92,0 % |
-| `wely-social` | 80 | 90,0 % |
-| `wely-chat` | 75 | 87,3 % |
-| `wely-web` | 252 | — |
+| Service | Tests | dont intégration | Couverture de lignes |
+|---|---|---|---|
+| `wely-gateway` | 26 | — | 100 % |
+| `wely-users` | 76 | — | 98,9 % |
+| `wely-social` | 97 | 17 (Neo4j) | 90,0 % |
+| `wely-chat` | 85 | 10 (MongoDB) | 87,3 % |
+| `wely-events` | 43 | — | 92,0 % |
+| `wely-web` | 252 | — | — |
+
+Les tests d'intégration lancent un vrai conteneur et sont opt-in : la CI pose `CI=true`, en local
+il faut `-Dintegration.tests=true`. La garde lit une variable d'environnement plutôt que de
+sonder Docker — cette sonde se connecte au démon, et un démon lancé mais figé la fait pendre,
+emportant le build avec elle.
 
 Convention appliquée sans exception : **un fichier de test par fichier testé**, nommé d'après
 lui, rangé dans la même arborescence, et couvrant chaque méthode publique — y compris les
@@ -359,6 +364,8 @@ chemins d'erreur, qui sont là où se cachent les bugs qui coûtent cher.
 
 **GitOps déplace le problème au bon endroit.** Passer de « la CD déploie » à « la CD met à jour un fichier, et le cluster se réconcilie » rend l'état du système lisible dans un dépôt Git plutôt que dans l'historique d'un pipeline.
 
+**Un test contre un double ne teste que le double.** Les deux premières classes Testcontainers ont trouvé un bug chacune à leur première exécution réelle. Dans `wely-social`, supprimer un ami **fonctionnait et renvoyait 500** : la requête faisait `RETURN` d'une relation, que Spring Data Neo4j ne sait mapper qu'en parcourant les relations d'un nœud — le `DELETE` passait côté serveur, le mapping échouait côté client. Dans `wely-chat`, le test de concurrence a produit deux *buckets* portant le même index, ce qui prouve que la contrainte unique et la reprise sur clé dupliquée sont porteuses et pas décoratives. Aucun des deux n'était atteignable par un test à base de mocks : l'un vit dans le mapping de Neo4j, l'autre dans le moteur de MongoDB.
+
 **Une métrique qu'on configure finit par mesurer ce qu'on a configuré.** Trois services affichaient 90 % de couverture en local et 38 % sur SonarCloud, sur le même commit. Leur configuration JaCoCo excluait du rapport les adaptateurs, les contrôleurs et les modèles — avec une règle exigeant 100 % sur ce qui restait. Ces exclusions n'agissent que sur JaCoCo ; Sonar analyse tous les fichiers et compte les absents comme non couverts. La règle passait parce qu'elle ne mesurait plus les parties difficiles. En les réintégrant, un vrai bug est apparu : `Message.id` côté domaine s'appelle `messageId` côté entité, et MapStruct mappe par nom — l'identifiant de chaque message était silencieusement perdu à l'écriture comme à la lecture. Le mapper est depuis déclaré `unmappedTargetPolicy = ERROR`, ce qui transforme ce genre d'oubli en erreur de compilation.
 
 **Une image multi-architecture ne doit rien compiler.** L'image du frontend est publiée pour amd64 et arm64, le cluster tournant sur Raspberry Pi. Comme le `Dockerfile` construisait le bundle Angular, `buildx` le compilait une fois par plateforme — la passe arm64 sous émulation QEMU. Deux minutes sont devenues six heures, puis un job bloqué. Le bundle est désormais compilé une fois, nativement, et l'image ne fait qu'une copie de fichiers.
@@ -373,7 +380,7 @@ Ce projet est un terrain d'apprentissage ; ces points sont identifiés et suivis
 |---|---|
 | **La diffusion des messages est au mieux-effort** | `wely-chat` tourne à deux réplicas et diffuse par Kafka, chaque pod formant son propre groupe de consommation pour recevoir tous les enregistrements. La livraison temps réel n'est pas garantie pour autant : le message est en base avant d'être diffusé, et un client qui a raté une frame recharge la conversation. Une garantie *at-least-once* demanderait un outbox côté producteur. |
 | **Pas de pagination sur la recherche d'utilisateurs** | La requête Cypher parcourt tous les nœuds `User` et le filtrage est fait côté client. À remplacer par une recherche serveur paginée et indexée. |
-| **Pas de tests d'intégration** | Les quatre bases et Kafka sont doublés : ni les requêtes Cypher, ni les `@Query` R2DBC, ni le `$push` conditionné de MongoDB ne sont vérifiés contre un vrai moteur. C'est la limite la plus coûteuse de ce projet, et deux bugs récents le confirment — un mappage d'identifiant silencieusement perdu, et une écriture concurrente dans un bucket. Testcontainers est le prochain chantier. |
+| **Tests d'intégration partiels** | Testcontainers couvre MongoDB (`wely-chat`) et Neo4j (`wely-social`) ; PostgreSQL, les événements et Kafka restent doublés. Ces tests ont trouvé deux bugs à leur première exécution — voir ci-dessous — ce qui dit surtout ce que les trois services restants cachent encore. La classe Neo4j prend ~23 min en CI contre ~4 pour MongoDB, et je n'ai pas élucidé pourquoi. |
 | **Keycloak n'a pas de probes et il n'y a pas de `NetworkPolicy`** | Les six services applicatifs exposent Actuator et portent `startupProbe` / `livenessProbe` / `readinessProbe`, des `resources` et un `securityContext` non-root. Keycloak attend que son image soit épinglée, et rien ne restreint encore les communications entre pods. |
 | **Les seuils de résilience de la gateway sont uniformes** | Un circuit breaker Resilience4j et un quota Redis par appelant protègent les cinq routes, mais avec la même configuration pour toutes — alors que `wely-social` interroge Neo4j et `wely-users` PostgreSQL, dont les latences normales diffèrent. À différencier quand il existera des mesures. |
 | **Pas d'outbox transactionnel** | Si la publication de `USER_CREATED` échoue après le commit Postgres, l'utilisateur existe sans nœud social et rien ne rattrape. |
