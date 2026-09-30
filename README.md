@@ -303,6 +303,34 @@ npm start                 # http://localhost:4200
 | 8084 | wely-chat (HTTP + RSocket) |
 | 8086 | wely-events |
 
+### Documentation d'API
+
+Chaque service Java sert sa propre spécification OpenAPI, sans jeton :
+
+| Service | Swagger UI |
+|---|---|
+| wely-gateway | <http://localhost:8081/swagger-ui.html> |
+| wely-users | <http://localhost:8082/swagger-ui.html> |
+| wely-social | <http://localhost:8083/swagger-ui.html> |
+| wely-chat | <http://localhost:8084/swagger-ui.html> |
+| wely-events | <http://localhost:8086/swagger-ui.html> |
+
+La spec JSON est sur `/v3/api-docs` du même port.
+
+**Les quatre services sont en `ClusterIP`** : rien hors du cluster ne peut atteindre leur
+documentation, et la gateway ne forwarde que `/api/v1/<service>/**` et `/rsocket`. Leur
+documentation est donc toujours active, sans exposition possible.
+
+**La gateway est le seul processus qu'atteint le tunnel Cloudflare**, et les règles de chemin du
+tunnel sont dans Cloudflare, pas dans ce dépôt — je ne peux donc pas garantir depuis les
+manifestes que `/v3/api-docs` n'est pas joignable publiquement. Sa documentation est pour cette
+raison **désactivée par défaut** et activée par `SPRINGDOC_ENABLED=true`, que posent les overlays
+`local` et `dev` et pas l'overlay `prod`.
+
+> Pas d'agrégation dans la gateway. Agréger supposerait qu'elle connaisse les chemins de
+> documentation de chaque service, ce qui recréerait exactement le couplage que le routage par
+> préfixe évite.
+
 ---
 
 ## CI/CD
@@ -370,6 +398,10 @@ chemins d'erreur, qui sont là où se cachent les bugs qui coûtent cher.
 **Un test contre un double ne teste que le double.** Les classes Testcontainers ont trouvé trois bugs, chacun invisible à un test à base de mocks. Dans `wely-social`, supprimer un ami **fonctionnait et renvoyait 500** : la requête faisait `RETURN` d'une relation, que Spring Data Neo4j ne sait mapper qu'en parcourant les relations d'un nœud — le `DELETE` passait côté serveur, le mapping échouait côté client. Dans `wely-chat`, le test de concurrence a produit deux *buckets* portant le même index, ce qui prouve que la contrainte unique et la reprise sur clé dupliquée sont porteuses et pas décoratives ; et le binder Kafka n'était pas branché sur le broker de test, parce que Spring Cloud Stream ne lit pas la propriété que `@ServiceConnection` renseigne. Aucun des trois n'était atteignable autrement : ils vivent dans le mapping de Neo4j, dans le moteur de MongoDB et dans la configuration du binder.
 
 **Une métrique qu'on configure finit par mesurer ce qu'on a configuré.** Trois services affichaient 90 % de couverture en local et 38 % sur SonarCloud, sur le même commit. Leur configuration JaCoCo excluait du rapport les adaptateurs, les contrôleurs et les modèles — avec une règle exigeant 100 % sur ce qui restait. Ces exclusions n'agissent que sur JaCoCo ; Sonar analyse tous les fichiers et compte les absents comme non couverts. La règle passait parce qu'elle ne mesurait plus les parties difficiles. En les réintégrant, un vrai bug est apparu : `Message.id` côté domaine s'appelle `messageId` côté entité, et MapStruct mappe par nom — l'identifiant de chaque message était silencieusement perdu à l'écriture comme à la lecture. Le mapper est depuis déclaré `unmappedTargetPolicy = ERROR`, ce qui transforme ce genre d'oubli en erreur de compilation.
+
+**Un prédicat trop large attrape ce qu'on n'a pas écrit.** Chaque service réattache son préfixe de chemin avec `configurer.addPathPrefix("/events-service", HandlerTypePredicate.forAnnotation(RestController.class))`. Ce prédicat sélectionne **tous** les `@RestController` du classpath, pas seulement les miens : en branchant springdoc, sa propre ressource s'est retrouvée préfixée, la spécification servie en `/events-service/v3/api-docs` — donc derrière l'authentification — et `/v3/api-docs` répondait 404 sans que rien ne le signale. Le prédicat sélectionne désormais par package. Attention au piège suivant si l'on tente de combiner les deux critères : `HandlerTypePredicate` teste ses sélecteurs en **OU**, pas en ET.
+
+**Un handler fourre-tout masque les statuts qu'il n'a pas prévus.** En écrivant le test qui vérifie que la documentation répond, j'ai découvert que `@ExceptionHandler(Exception.class)` interceptait aussi `ResponseStatusException` : **tout chemin inconnu renvoyait 500 au lieu de 404**, dans les quatre services. Un test de route nominale ne voit jamais ça — il faut interroger un chemin qui n'existe pas, ce qu'on ne pense pas à faire.
 
 **Une image multi-architecture ne doit rien compiler.** L'image du frontend est publiée pour amd64 et arm64, le cluster tournant sur Raspberry Pi. Comme le `Dockerfile` construisait le bundle Angular, `buildx` le compilait une fois par plateforme — la passe arm64 sous émulation QEMU. Deux minutes sont devenues six heures, puis un job bloqué. Le bundle est désormais compilé une fois, nativement, et l'image ne fait qu'une copie de fichiers.
 
