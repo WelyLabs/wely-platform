@@ -66,7 +66,7 @@ graph TB
         MG2[("MongoDB<br/>events")]
     end
 
-    K{{"<b>Kafka</b><br/>USER_CREATED"}}
+    K{{"<b>Kafka</b><br/>USER_CREATED<br/>MESSAGE_BROADCAST"}}
 
     FE -->|"REST · /api/v1/*"| GW
     FE -->|"RSocket · /rsocket"| GW
@@ -78,6 +78,7 @@ graph TB
     U --> PG
     U -->|"produit"| K
     K -->|"consomme"| S
+    C <-->|"diffuse et consomme"| K
     S --> NEO
     C --> MG1
     E --> MG2
@@ -343,7 +344,7 @@ Ce projet est un terrain d'apprentissage ; ces points sont identifiés et suivis
 
 | Limite | Détail |
 |---|---|
-| **Le chat ne scale pas horizontalement** | Le fan-out des messages passe par un `Sinks.Many` en mémoire, local au processus. Au-delà d'un réplica, un message émis sur un pod n'atteint pas un destinataire connecté à un autre. Le correctif est un topic Kafka ou Redis Pub/Sub — l'infrastructure Kafka est déjà en place. |
+| **La diffusion des messages est au mieux-effort** | `wely-chat` tourne à deux réplicas et diffuse par Kafka, chaque pod formant son propre groupe de consommation pour recevoir tous les enregistrements. La livraison temps réel n'est pas garantie pour autant : le message est en base avant d'être diffusé, et un client qui a raté une frame recharge la conversation. Une garantie *at-least-once* demanderait un outbox côté producteur. |
 | **Pas de pagination sur la recherche d'utilisateurs** | La requête Cypher parcourt tous les nœuds `User` et le filtrage est fait côté client. À remplacer par une recherche serveur paginée et indexée. |
 | **Pas de tests d'intégration** | Les quatre bases et Kafka sont mockés. Les requêtes Cypher et R2DBC ne sont jamais vérifiées contre un vrai moteur. Testcontainers est le prochain chantier. |
 | **Pas de health checks ni de limites de ressources** | Actuator absent, pas de `livenessProbe`/`readinessProbe`, pas de `resources` dans les manifestes. |
