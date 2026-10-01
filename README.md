@@ -11,6 +11,7 @@ Projet personnel, écrit intégralement à la main.
 ## Sommaire
 
 - [Aperçu](#aperçu)
+- [L'application](#lapplication)
 - [Architecture](#architecture)
 - [Choix techniques](#choix-techniques)
 - [Les dépôts](#les-dépôts)
@@ -36,6 +37,50 @@ Projet personnel, écrit intégralement à la main.
 | **Livraison** | GitHub Actions · semantic-release · GHCR |
 
 **Les chemins de requête sont non bloquants de bout en bout** : pas de `.block()`, pas de pool de threads par requête, et les quatre bases sont accédées par des drivers réactifs. La seule exception est un `DatabaseSeeder` de jeu d'essai, actif uniquement en profil local.
+
+---
+
+## L'application
+
+<p align="center">
+  <img src="docs/screenshots/calendar-month.jpg" alt="Vue mensuelle du calendrier, avec les événements auxquels l'utilisateur est inscrit" width="900">
+</p>
+
+Le calendrier n'affiche que les événements auxquels l'utilisateur est **inscrit**. C'est une
+distinction qui porte toute la conception : `wely-events` modélise des abonnements, pas un agenda
+personnel, et le fil de découverte ci-dessous est le mécanisme par lequel on s'y abonne.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/chat.jpg" alt="Conversation en temps réel entre deux utilisateurs">
+      <p><strong>Messagerie temps réel.</strong> Le transport est RSocket sur WebSocket, pas du
+      polling : le serveur pousse. Les messages sont stockés par paquets de cinquante dans un même
+      document MongoDB — le <em>bucket pattern</em> — plutôt qu'un document par message.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/feed.jpg" alt="Fil de découverte des événements, carte à faire glisser">
+      <p><strong>Fil de découverte.</strong> Les événements auxquels l'utilisateur n'est pas
+      inscrit. Glisser à droite l'y inscrit, à gauche le passe. Le nom de l'organisateur vient du
+      service social : un événement ne porte qu'un identifiant, <code>wely-events</code> ignorant
+      qui sont les utilisateurs.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/users.jpg" alt="Recherche d'utilisateurs et statut relationnel">
+      <p><strong>Graphe social.</strong> Chaque carte porte le statut de la relation — ami,
+      demande envoyée, inconnu — calculé par une requête Cypher bidirectionnelle sur Neo4j.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/calendar-week.jpg" alt="Vue hebdomadaire du calendrier">
+      <p><strong>Vue hebdomadaire.</strong> Grille horaire avec marqueur d'heure courante. La
+      création d'événement se fait en glissant sur une plage.</p>
+    </td>
+  </tr>
+</table>
+
+> Captures prises sur l'environnement `dev`, avec un jeu de données de démonstration.
 
 ---
 
