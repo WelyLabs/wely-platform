@@ -318,7 +318,7 @@ Pour développer sur un service en particulier.
 docker compose up -d      # Keycloak, avec import automatique du realm
 ```
 
-> Le `docker-compose.yml` ne démarre que Keycloak : les bases doivent être lancées séparément. Un compose complet est le prochain chantier (voir [Limites connues](#limites-connues)).
+> Le `docker-compose.yml` ne démarre que Keycloak : les bases doivent être lancées séparément. Il n'y aura pas de compose complet — le chemin de démarrage local est `kubectl apply -k overlays/local`, et maintenir deux modes d'amorçage en parallèle ne produirait qu'une divergence de configuration.
 
 Puis chaque service, avec le profil `dev` :
 
@@ -460,11 +460,11 @@ Ce projet est un terrain d'apprentissage ; ces points sont identifiés et suivis
 |---|---|
 | **La diffusion des messages est au mieux-effort** | `wely-chat` tourne à deux réplicas et diffuse par Kafka, chaque pod formant son propre groupe de consommation pour recevoir tous les enregistrements. La livraison temps réel n'est pas garantie pour autant : le message est en base avant d'être diffusé, et un client qui a raté une frame recharge la conversation. Une garantie *at-least-once* demanderait un outbox côté producteur. |
 | **Pas de pagination sur la recherche d'utilisateurs** | La requête Cypher parcourt tous les nœuds `User` et le filtrage est fait côté client. À remplacer par une recherche serveur paginée et indexée. |
-| **La classe d'intégration Neo4j coûte ~23 min de CI** | Contre moins d'une minute pour PostgreSQL et les deux MongoDB, et ~2,5 min pour Kafka. La lenteur est propre à l'image Neo4j, pas à Testcontainers, et la cause n'est pas élucidée. Si le coût devient gênant, la sortie est de réserver les tests d'intégration à `main` et aux PR. |
+| **La classe d'intégration Neo4j coûte 15 à 50 min de CI** | Contre moins d'une minute pour PostgreSQL et les deux MongoDB, et ~2,5 min pour Kafka. La durée varie d'un run à l'autre dans ce rapport de un à trois. La lenteur est propre à l'image Neo4j, pas à Testcontainers, et la cause n'est pas élucidée. Si le coût devient gênant, la sortie est de réserver les tests d'intégration à `main` et aux PR. |
 | **Keycloak n'a pas de probes et il n'y a pas de `NetworkPolicy`** | Les six services applicatifs exposent Actuator et portent `startupProbe` / `livenessProbe` / `readinessProbe`, des `resources` et un `securityContext` non-root. Keycloak attend que son image soit épinglée, et rien ne restreint encore les communications entre pods. |
 | **Les seuils de résilience de la gateway sont uniformes** | Un circuit breaker Resilience4j et un quota Redis par appelant protègent les cinq routes, mais avec la même configuration pour toutes — alors que `wely-social` interroge Neo4j et `wely-users` PostgreSQL, dont les latences normales diffèrent. À différencier quand il existera des mesures. |
 | **Pas d'outbox transactionnel** | Si la publication de `USER_CREATED` échoue après le commit Postgres, l'utilisateur existe sans nœud social et rien ne rattrape. |
-| **Démarrage local** | Le chemin complet passe par un Kubernetes local ; le `docker-compose.yml` ne lance que Keycloak. Un compose complet reste à écrire pour ceux qui n'ont pas de cluster. |
+| **Le démarrage local suppose un Kubernetes** | `kubectl apply -k overlays/local` déploie tout — bases, Keycloak, les six services et le frontend — mais il faut un cluster local. Le `docker-compose.yml` ne lance que Keycloak, et c'est assumé : un second mode d'amorçage complet divergerait du premier sans que rien ne le signale. |
 
 ---
 
