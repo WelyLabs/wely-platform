@@ -4,7 +4,7 @@
 
 Les utilisateurs créent des événements, s'abonnent à ceux de leurs amis et discutent en temps réel. La fonctionnalité est un prétexte : l'objet du projet est la mise en œuvre bout en bout d'une plateforme distribuée — architecture hexagonale, persistance polyglotte, communication événementielle, messagerie RSocket, déploiement GitOps.
 
-Projet personnel, écrit intégralement à la main.
+Projet personnel, conçu et piloté de bout en bout, avec l'aide d'un assistant IA sur la fin.
 
 ---
 
