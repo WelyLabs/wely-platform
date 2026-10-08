@@ -8,8 +8,24 @@ Projet personnel, écrit intégralement à la main.
 
 ---
 
+## Essayer la démo
+
+**[dev-web.welylabs.app](https://dev-web.welylabs.app)**, avec le compte public :
+
+| | |
+|---|---|
+| Identifiant | `demo@welylabs.app` |
+| Mot de passe | `Demo-Wely-2026` |
+
+Vous y êtes Camille : six amis, une semaine d'événements autour d'aujourd'hui, un fil d'événements à rejoindre, trois conversations, et une demande d'amitié en attente dans chaque sens.
+
+Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données sont **remises à zéro chaque nuit à 4 h** : ce que vous y ajoutez disparaît le lendemain. L'ensemble tourne sur un Raspberry Pi 5 sous k3s, derrière un tunnel Cloudflare.
+
+---
+
 ## Sommaire
 
+- [Essayer la démo](#essayer-la-démo)
 - [Aperçu](#aperçu)
 - [L'application](#lapplication)
 - [Architecture](#architecture)
