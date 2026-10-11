@@ -89,9 +89,11 @@ Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données son
     </td>
     <td width="50%" valign="top">
       <img src="docs/screenshots/chat.jpg" alt="Conversation en temps réel entre deux utilisateurs">
+      <img src="docs/screenshots/conversations.jpg" alt="Liste des conversations, avec le vrai statut en ligne de chaque personne">
       <p><strong>Messagerie temps réel.</strong> RSocket sur WebSocket, diffusion entre instances
       par Kafka, messages groupés par cinquante dans un document MongoDB (<em>bucket pattern</em>).
-      Le statut « En ligne » est partagé par les instances via MongoDB, avec un index TTL.</p>
+      Le statut « En ligne » de chaque personne est partagé par les instances via MongoDB, avec un
+      index TTL.</p>
     </td>
   </tr>
   <tr>
