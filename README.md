@@ -98,6 +98,23 @@ Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données son
   </tr>
   <tr>
     <td width="50%" valign="top">
+      <img src="docs/screenshots/explore-map.jpg" alt="Carte des événements à venir autour de Lyon, avec la fiche d'un événement à rejoindre">
+      <p><strong>Explorer sur une carte.</strong> Les événements à venir que l'on peut voir, dans la
+      zone affichée : à chaque déplacement, <code>wely-events</code> répond par une requête
+      <code>$geoWithin</code> sur un index <code>2dsphere</code>, avec les mêmes règles de visibilité
+      que le fil. On rejoint depuis l'épingle. MapLibre et les tuiles OpenFreeMap : open source,
+      sans clé ni quota, chargés seulement à l'ouverture de la carte.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/location-picker.jpg" alt="Formulaire d'événement avec la recherche d'adresse et la carte pour choisir le lieu">
+      <p><strong>Choisir le lieu sur la carte.</strong> Recherche d'adresse au fil de la frappe
+      (Photon, données OpenStreetMap), clic ou épingle à déplacer : le lieu se remplit et
+      l'événement garde ses coordonnées, stockées en GeoJSON. Le jeton d'accès n'est envoyé qu'à
+      notre API, jamais au géocodeur.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="docs/screenshots/feed.jpg" alt="Fil de découverte des événements, carte à faire glisser">
       <p><strong>Fil de découverte.</strong> Les événements publics et ceux que partagent ses
       amis, filtrés dans la requête Mongo selon la visibilité de chaque événement (public, amis,
