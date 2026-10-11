@@ -59,44 +59,57 @@ Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données son
 ## L'application
 
 <p align="center">
-  <img src="docs/screenshots/calendar-month.jpg" alt="Vue mensuelle du calendrier, avec les événements auxquels l'utilisateur est inscrit" width="900">
+  <img src="docs/screenshots/calendar-week.jpg" alt="Vue semaine du calendrier de Camille, avec les calendriers de Léa et Hugo superposés en colonnes et les créneaux où tous sont libres en vert" width="900">
 </p>
 
-Le calendrier n'affiche que les événements auxquels l'utilisateur est **inscrit**. C'est une
-distinction qui porte toute la conception : `wely-events` modélise des abonnements, pas un agenda
-personnel, et le fil de découverte ci-dessous est le mécanisme par lequel on s'y abonne.
+**Le calendrier de ses amis, superposé au sien.** On mentionne jusqu'à quatre amis avec `@` : leurs agendas s'affichent côte à côte, une colonne de couleur par ami, et les moments où **tout le monde est libre** (entre 8 h et 23 h) apparaissent en vert. Ce qu'on voit d'un événement dépend de la **proximité**, acceptée par les deux : « Ami » ne montre que « Occupé », « Proche » ajoute le titre, « Intime » montre tout — sauf les événements privés, qui restent « Occupé ». La décision vit dans `wely-events`, la proximité dans le graphe Neo4j de `wely-social`.
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/chat.jpg" alt="Conversation en temps réel entre deux utilisateurs">
-      <p><strong>Messagerie temps réel.</strong> Le transport est RSocket sur WebSocket, pas du
-      polling : le serveur pousse. Les messages sont stockés par paquets de cinquante dans un même
-      document MongoDB — le <em>bucket pattern</em> — plutôt qu'un document par message.</p>
+      <img src="docs/screenshots/find-slot.jpg" alt="Formulaire de création d'événement avec la recherche d'un créneau commun à Léa et Hugo">
+      <p><strong>Trouver un créneau.</strong> On glisse sur une plage, on mentionne des amis, on
+      choisit une durée : <code>wely-events</code> calcule les trous communs en Java pur, à partir
+      d'une requête Mongo sur les seuls événements qui chevauchent la plage. Ni titre ni lieu ne
+      sortent : seulement des plages libres.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/feed.jpg" alt="Fil de découverte des événements, carte à faire glisser">
-      <p><strong>Fil de découverte.</strong> Les événements auxquels l'utilisateur n'est pas
-      inscrit. Glisser à droite l'y inscrit, à gauche le passe. Le nom de l'organisateur vient du
-      service social : un événement ne porte qu'un identifiant, <code>wely-events</code> ignorant
-      qui sont les utilisateurs.</p>
+      <img src="docs/screenshots/calendar-month.jpg" alt="Vue mois avec une barre de charge par ami et les journées où tous sont libres">
+      <p><strong>Vue mois.</strong> Une barre par ami superposé, remplie selon son temps occupé
+      dans la journée, et une pastille verte quand tout le monde a au moins deux heures libres
+      ensemble. Un clic ouvre la journée.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/users.jpg" alt="Recherche d'utilisateurs et statut relationnel">
-      <p><strong>Graphe social.</strong> Chaque carte porte le statut de la relation — ami,
-      demande envoyée, inconnu — calculé par une requête Cypher bidirectionnelle sur Neo4j.</p>
+      <img src="docs/screenshots/friends.jpg" alt="Page Amis avec le niveau de proximité de chaque ami">
+      <p><strong>Niveaux de proximité.</strong> Monter d'un niveau est une proposition que l'autre
+      accepte ; descendre s'applique tout de suite, sans son accord. Les écritures sont protégées
+      par un verrou optimiste sur la relation Neo4j : deux réponses simultanées ne s'écrasent pas.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/calendar-week.jpg" alt="Vue hebdomadaire du calendrier">
-      <p><strong>Vue hebdomadaire.</strong> Grille horaire avec marqueur d'heure courante. La
-      création d'événement se fait en glissant sur une plage.</p>
+      <img src="docs/screenshots/chat.jpg" alt="Conversation en temps réel entre deux utilisateurs">
+      <p><strong>Messagerie temps réel.</strong> RSocket sur WebSocket, diffusion entre instances
+      par Kafka, messages groupés par cinquante dans un document MongoDB (<em>bucket pattern</em>).
+      Le statut « En ligne » est partagé par les instances via MongoDB, avec un index TTL.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/feed.jpg" alt="Fil de découverte des événements, carte à faire glisser">
+      <p><strong>Fil de découverte.</strong> Les événements publics et ceux que partagent ses
+      amis, filtrés dans la requête Mongo selon la visibilité de chaque événement (public, amis,
+      privé). Glisser à droite pour s'inscrire.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/landing.jpg" alt="Page d'accueil de Wely">
+      <p><strong>Page d'accueil.</strong> Construite à partir des vrais composants de l'appli,
+      avec le compte de démonstration en libre accès.</p>
     </td>
   </tr>
 </table>
 
-> Captures prises sur l'environnement `dev`, avec un jeu de données de démonstration.
+> Captures prises le 11 octobre 2026 sur l'environnement `dev`, avec le compte de démonstration et son jeu de données.
 
 ---
 
