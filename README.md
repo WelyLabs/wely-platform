@@ -67,11 +67,12 @@ Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données son
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/find-slot.jpg" alt="Formulaire de création d'événement avec la recherche d'un créneau commun à Léa et Hugo">
-      <p><strong>Trouver un créneau.</strong> On glisse sur une plage, on mentionne des amis, on
-      choisit une durée : <code>wely-events</code> calcule les trous communs en Java pur, à partir
-      d'une requête Mongo sur les seuls événements qui chevauchent la plage. Ni titre ni lieu ne
-      sortent : seulement des plages libres.</p>
+      <img src="docs/screenshots/date-poll.jpg" alt="Page d'un événement en sondage : trois créneaux proposés, le vote de chacun et le créneau en tête">
+      <p><strong>Sondage de date.</strong> L'organisateur propose de deux à cinq créneaux ; ceux qui
+      voient l'événement votent Oui / Peut-être / Non, et les votes arrivent en direct par un flux
+      <em>Server-Sent Events</em> servi en WebFlux par <code>wely-events</code>. Fixer la date inscrit
+      ceux qui ont dit oui et publie <code>EVENT_DATE_FIXED</code> sur Kafka : <code>wely-chat</code>
+      l'annonce dans le chat du groupe.</p>
     </td>
     <td width="50%" valign="top">
       <img src="docs/screenshots/calendar-month.jpg" alt="Vue mois avec une barre de charge par ami et les journées où tous sont libres">
