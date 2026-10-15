@@ -151,6 +151,7 @@ graph TB
         S["<b>wely-social</b> :8083<br/><i>graphe d'amitié</i>"]
         C["<b>wely-chat</b> :8084<br/><i>messagerie RSocket</i>"]
         E["<b>wely-events</b> :8086<br/><i>événements · feed</i>"]
+        N["<b>wely-notifications</b> :8087<br/><i>centre · SSE · Web Push</i>"]
     end
 
     subgraph data["Persistance"]
@@ -158,6 +159,7 @@ graph TB
         NEO[("Neo4j")]
         MG1[("MongoDB<br/>chat")]
         MG2[("MongoDB<br/>events")]
+        MG3[("MongoDB<br/>notifications")]
     end
 
     K{{"<b>Kafka</b><br/>USER_CREATED<br/>MESSAGE_BROADCAST"}}
@@ -167,7 +169,7 @@ graph TB
     FE -.->|"OIDC"| KC
     KC -.->|"JIT provisioning"| U
 
-    GW --> U & S & C & E
+    GW --> U & S & C & E & N
 
     U --> PG
     U -->|"produit"| K
@@ -176,6 +178,9 @@ graph TB
     S --> NEO
     C --> MG1
     E --> MG2
+    K -->|"appels · messages · dates · amis"| N
+    N --> MG3
+    N -.->|"Web Push"| FE
 ```
 
 ### Architecture interne — hexagonale
@@ -315,7 +320,7 @@ RSocket apporte le modèle `request/stream` et la **contre-pression native** : l
 
 ## Les dépôts
 
-Le projet est réparti en 8 dépôts indépendants, chacun avec son CI/CD et son cycle de release.
+Le projet est réparti en 10 dépôts indépendants, chacun avec son CI/CD et son cycle de release.
 
 | Dépôt | Rôle |
 |---|---|
@@ -325,6 +330,8 @@ Le projet est réparti en 8 dépôts indépendants, chacun avec son CI/CD et son
 | [`wely-social`](https://github.com/WelyLabs/wely-social) | Graphe social Neo4j, consommateur Kafka |
 | [`wely-chat`](https://github.com/WelyLabs/wely-chat) | Messagerie temps réel RSocket |
 | [`wely-events`](https://github.com/WelyLabs/wely-events) | Événements et abonnements |
+| [`wely-media`](https://github.com/WelyLabs/wely-media) | Stockage des photos (Garage S3), URL signées |
+| [`wely-notifications`](https://github.com/WelyLabs/wely-notifications) | Centre de notifications, SSE, Web Push chiffré (RFC 8291) |
 | [`wely-identity`](https://github.com/WelyLabs/wely-identity) | Realm Keycloak + plugin `BusinessIdMapper` |
 | [`wely-gitops-infra`](https://github.com/WelyLabs/wely-gitops-infra) | Manifestes Kustomize, applications ArgoCD |
 
@@ -396,6 +403,7 @@ npm start                 # http://localhost:4200
 | 8083 | wely-social |
 | 8084 | wely-chat (HTTP + RSocket) |
 | 8086 | wely-events |
+| 8087 | wely-notifications |
 
 ### Documentation d'API
 
@@ -408,6 +416,7 @@ Chaque service Java sert sa propre spécification OpenAPI, sans jeton :
 | wely-social | <http://localhost:8083/swagger-ui.html> |
 | wely-chat | <http://localhost:8084/swagger-ui.html> |
 | wely-events | <http://localhost:8086/swagger-ui.html> |
+| wely-notifications | <http://localhost:8087/swagger-ui.html> |
 
 La spec JSON est sur `/v3/api-docs` du même port.
 
