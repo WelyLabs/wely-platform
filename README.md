@@ -484,6 +484,20 @@ Convention appliquée sans exception : **un fichier de test par fichier testé**
 lui, rangé dans la même arborescence, et couvrant chaque méthode publique — y compris les
 chemins d'erreur, qui sont là où se cachent les bugs qui coûtent cher.
 
+### Cohérence des codes d'erreur entre services et clients
+
+Les clients (`wely-web`, `wely-ios`) réagissent au `code` des réponses RFC 7807
+(`USR-BUS-004`, `CHT-TEC-002`…), écrit en dur de leur côté. Rien ne relie les deux bords : un code
+renommé dans un service continue de compiler dans les clients, et cesse simplement de
+correspondre. Un script relit les deux côtés depuis les dépôts clonés côte à côte et échoue sur
+tout code client qu'aucun service ne déclare :
+
+```bash
+node scripts/check-error-codes.mjs ..
+```
+
+Il tourne en local, pas en CI : il a besoin de tous les dépôts, dont certains sont privés.
+
 ---
 
 ## Ce que ce projet m'a appris
