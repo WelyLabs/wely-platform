@@ -127,6 +127,15 @@ Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données son
       avec le compte de démonstration en libre accès.</p>
     </td>
   </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/login.jpg" alt="Écran de connexion Keycloak aux couleurs de Wely : panneau de marque en dégradé à gauche, formulaire à droite">
+      <p><strong>Connexion.</strong> Un thème Keycloak sur mesure, servi par l'instance partagée
+      que tous les environnements utilisent : c'est le realm dans l'URL qui les distingue, pas le
+      nom d'hôte. Le compte de démonstration est affiché sur le formulaire.</p>
+    </td>
+    <td width="50%" valign="top"></td>
+  </tr>
 </table>
 
 > Captures prises le 11 octobre 2026 sur l'environnement `dev`, avec le compte de démonstration et son jeu de données.
