@@ -142,8 +142,12 @@ graph TB
     end
 
     subgraph edge["Edge"]
-        GW["<b>wely-gateway</b> :8081<br/>Spring Cloud Gateway<br/><i>validation JWT · CORS · routage</i>"]
-        KC["<b>Keycloak</b> :8080<br/><i>OIDC + BusinessIdMapper</i>"]
+        GW["<b>wely-gateway</b> :8081<br/>Spring Cloud Gateway<br/><i>validation JWT · audience · CORS · routage</i>"]
+    end
+
+    subgraph platform["Socle partagé · un seul exemplaire pour tous les environnements"]
+        KC["<b>Keycloak</b> :8080<br/><i>OIDC + BusinessIdMapper</i><br/><i>un realm par environnement</i>"]
+        K{{"<b>Kafka</b><br/><i>un préfixe de topic par environnement</i>"}}
     end
 
     subgraph services["Services métier"]
@@ -161,8 +165,6 @@ graph TB
         MG2[("MongoDB<br/>events")]
         MG3[("MongoDB<br/>notifications")]
     end
-
-    K{{"<b>Kafka</b><br/>USER_CREATED<br/>MESSAGE_BROADCAST"}}
 
     FE -->|"REST · /api/v1/*"| GW
     FE -->|"RSocket · /rsocket"| GW
@@ -247,7 +249,7 @@ sequenceDiagram
     alt première connexion
         M->>U: GET /profile/resolve/{keycloakId}
         U->>U: création de l'utilisateur + hashtag unique
-        U->>K: publie USER_CREATED
+        U->>K: publie <env>.user-created
         U-->>M: businessId (UUID)
         M->>KC: mémorise l'attribut sur l'utilisateur
         K->>S: consomme → crée le nœud Neo4j
@@ -273,6 +275,41 @@ spring.security.oauth2.resourceserver.jwt.issuer-uri=${KEYCLOAK_ISSUER_URI}
 ```
 
 Sans cette dissociation, soit le service sort du cluster pour récupérer les clés à chaque rotation, soit la validation de l'`iss` échoue parce que l'URL interne ne correspond pas à celle inscrite dans le token.
+
+### Un seul Keycloak, un realm par environnement
+
+Keycloak et Kafka sont des **exemplaires uniques**, partagés par tous les environnements. Ils
+s'isolent par une frontière que leur produit offre déjà : le **realm** pour l'un, le **préfixe de
+topic** pour l'autre.
+
+| | dev | prod |
+|---|---|---|
+| Realm | `wely-dev` | `wely-prod` |
+| Clients | `wely-web-dev-client`, `wely-mcp-dev-client`, … | `wely-web-prod-client`, … |
+| Audience exigée | `wely-api-dev` | `wely-api-prod` |
+| Topics | `dev.user-created`, `dev.message-broadcast`, … | `prod.user-created`, … |
+
+Une seule URL d'authentification, `auth.welylabs.app` : c'est le realm dans le chemin qui distingue
+l'environnement, pas le nom d'hôte.
+
+Deux conséquences assumées. **Le rayon de souffle est partagé** — une montée de version de Keycloak
+déconnecte tous les environnements à la fois ; c'est le prix d'un exemplaire unique sur une seule
+machine. Et **le mapper `businessId` doit savoir à quel environnement il parle** : son `USERS_API_URL`
+porte un gabarit `wely-{env}`, substitué depuis le nom du realm. Une URL fixe aurait résolu les
+identifiants de tous les realms contre un seul environnement — avec une signature et une audience
+valides par-dessus, donc sans rien pour le signaler.
+
+### L'audience nomme la ressource, pas le demandeur
+
+```properties
+spring.security.oauth2.resourceserver.jwt.audiences=${JWT_AUDIENCES:}
+```
+
+Sans elle, tout token authentique du realm est accepté, quel que soit le client qui l'a demandé :
+chaque client ajouté élargit la surface de l'API sans que rien ne l'indique. Le mapper d'audience
+estampille `wely-api-<env>`, c'est-à-dire **l'API visée**. Le piège est de le faire porter le
+*client appelant* — ce que faisait la configuration d'origine : valider cela revient à accepter
+tous les tokens, en croyant avoir fermé quelque chose.
 
 ---
 
@@ -305,10 +342,10 @@ Charger une conversation = lire **un** document (le dernier bucket). Remonter l'
 
 ### Kafka pour la cohérence inter-services
 
-`wely-users` ne connaît pas `wely-social`. Il publie `USER_CREATED`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
+`wely-users` ne connaît pas `wely-social`. Il publie `<env>.user-created`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
 
 ```
-wely-users ──▶ USER_CREATED ──▶ wely-social ──▶ nœud Neo4j
+wely-users ──▶ <env>.user-created ──▶ wely-social ──▶ nœud Neo4j
      (Postgres)          (topic Kafka)                             (graphe)
 ```
 
@@ -535,7 +572,9 @@ Ce projet est un terrain d'apprentissage ; ces points sont identifiés et suivis
 | **La classe d'intégration Neo4j coûte 15 à 50 min de CI** | Contre moins d'une minute pour PostgreSQL et les deux MongoDB, et ~2,5 min pour Kafka. La durée varie d'un run à l'autre dans ce rapport de un à trois. La lenteur est propre à l'image Neo4j, pas à Testcontainers, et la cause n'est pas élucidée. Si le coût devient gênant, la sortie est de réserver les tests d'intégration à `main` et aux PR. |
 | **Keycloak n'a pas de probes et il n'y a pas de `NetworkPolicy`** | Les six services applicatifs exposent Actuator et portent `startupProbe` / `livenessProbe` / `readinessProbe`, des `resources` et un `securityContext` non-root. Keycloak attend que son image soit épinglée, et rien ne restreint encore les communications entre pods. |
 | **Les seuils de résilience de la gateway sont uniformes** | Un circuit breaker Resilience4j et un quota Redis par appelant protègent les cinq routes, mais avec la même configuration pour toutes — alors que `wely-social` interroge Neo4j et `wely-users` PostgreSQL, dont les latences normales diffèrent. À différencier quand il existera des mesures. |
-| **Pas d'outbox transactionnel** | Si la publication de `USER_CREATED` échoue après le commit Postgres, l'utilisateur existe sans nœud social et rien ne rattrape. |
+| **Pas d'outbox transactionnel** | Si la publication de `<env>.user-created` échoue après le commit Postgres, l'utilisateur existe sans nœud social et rien ne rattrape. |
+| **Un socle partagé, donc un rayon de souffle partagé** | Keycloak et Kafka existent en un seul exemplaire : une montée de version de l'un déconnecte tous les environnements à la fois. C'est le prix assumé d'un exemplaire unique sur une seule machine — à une réplique, le mutualiser ne coûte rien de plus que de le dupliquer. |
+| **Pas de restauration de session silencieuse** | Le contrôle SSO silencieux charge Keycloak dans une iframe, que celui-ci refuse depuis une autre origine (`X-Frame-Options: SAMEORIGIN`). Le rétablir supposerait d'ouvrir `frame-ancestors` à l'origine de l'application, donc d'affaiblir la protection anti-clickjacking du fournisseur d'identité : l'utilisateur clique « Se connecter », et c'est le bon compromis. |
 | **Le démarrage local suppose un Kubernetes** | `kubectl apply -k overlays/local` déploie tout — bases, Keycloak, les six services et le frontend — mais il faut un cluster local. Le `docker-compose.yml` ne lance que Keycloak, et c'est assumé : un second mode d'amorçage complet divergerait du premier sans que rien ne le signale. |
 
 ---
