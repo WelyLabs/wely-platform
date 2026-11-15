@@ -46,6 +46,7 @@ Le compte ne peut changer ni son mot de passe ni son pseudo, et ses données son
 | **Temps réel** | RSocket over WebSocket |
 | **Événementiel** | Apache Kafka · Spring Cloud Stream |
 | **Persistance** | PostgreSQL (R2DBC) · MongoDB réactif · Neo4j réactif |
+| **Données managées** | Neon · MongoDB Atlas · Neo4j Aura · Confluent Cloud · Cloudflare R2 |
 | **Identité** | Keycloak · OIDC · mapper de protocole custom |
 | **Frontend** | Angular 21 · Angular Material · Tailwind |
 | **Infrastructure** | Kubernetes · Kustomize · ArgoCD · Sealed Secrets · Cloudflare Tunnel |
@@ -156,7 +157,6 @@ graph TB
 
     subgraph platform["Socle partagé · un seul exemplaire pour tous les environnements"]
         KC["<b>Keycloak</b> :8080<br/><i>OIDC + BusinessIdMapper</i><br/><i>un realm par environnement</i>"]
-        K{{"<b>Kafka</b><br/><i>un préfixe de topic par environnement</i>"}}
     end
 
     subgraph services["Services métier"]
@@ -167,12 +167,14 @@ graph TB
         N["<b>wely-notifications</b> :8087<br/><i>centre · SSE · Web Push</i>"]
     end
 
-    subgraph data["Persistance"]
-        PG[("PostgreSQL<br/>R2DBC")]
-        NEO[("Neo4j")]
-        MG1[("MongoDB<br/>chat")]
-        MG2[("MongoDB<br/>events")]
-        MG3[("MongoDB<br/>notifications")]
+    subgraph data["Persistance · services managés"]
+        PG[("PostgreSQL R2DBC<br/><i>Neon</i>")]
+        NEO[("Neo4j<br/><i>Aura</i>")]
+        MG1[("MongoDB chat<br/><i>Atlas</i>")]
+        MG2[("MongoDB events<br/><i>Atlas</i>")]
+        MG3[("MongoDB notifications<br/><i>Atlas</i>")]
+        K{{"<b>Kafka</b><br/><i>Confluent Cloud</i><br/><i>un préfixe de topic par environnement</i>"}}
+        R2[("Photos<br/><i>Cloudflare R2</i>")]
     end
 
     FE -->|"REST · /api/v1/*"| GW
@@ -326,12 +328,23 @@ tous les tokens, en croyant avoir fermé quelque chose.
 
 ### Une base par service, choisie pour la forme de la donnée
 
-| Service | Base | Raison |
-|---|---|---|
-| **users** | PostgreSQL / R2DBC | Données relationnelles, contrainte d'unicité `(user_name, hashtag)` garantie par la base |
-| **social** | Neo4j | « amis d'amis », statut relationnel bidirectionnel, suggestions : requêtes de graphe naturelles en Cypher, pénibles en SQL |
-| **chat** | MongoDB | *Bucket pattern* — voir ci-dessous |
-| **events** | MongoDB | Documents autonomes, schéma souple, pas de jointure |
+| Service | Base | Hébergement | Raison |
+|---|---|---|---|
+| **users** | PostgreSQL / R2DBC | Neon | Données relationnelles, contrainte d'unicité `(user_name, hashtag)` garantie par la base |
+| **social** | Neo4j | Aura | « amis d'amis », statut relationnel bidirectionnel, suggestions : requêtes de graphe naturelles en Cypher, pénibles en SQL |
+| **chat** | MongoDB | Atlas | *Bucket pattern* — voir ci-dessous |
+| **events** | MongoDB | Atlas | Documents autonomes, schéma souple, pas de jointure |
+| **notifications** | MongoDB | Atlas | Documents courts et nombreux, purgés par TTL |
+| **media** | S3 | Cloudflare R2 | Les octets des photos, servis au navigateur par URL signée |
+
+**Les cinq stockages ont quitté le cluster en novembre 2026.** Ils tournaient en StatefulSets sur
+un Raspberry Pi, qui écrit sur une carte SD — le composant qui lâche en premier, et celui sur
+lequel quatre bases et un broker écrivaient en continu. Les déplacer chez des services managés a
+supprimé d'un coup les sauvegardes à écrire, les volumes à surveiller et la question « que se
+passe-t-il si cette carte meurt ». Ce que ça coûte en échange est réel et assumé : une dépendance
+réseau sur le chemin de chaque requête, des quotas de palier gratuit, et des identifiants à faire
+tourner. Le code, lui, n'a pas bougé — les drivers réactifs et les URI sont les mêmes, seule la
+configuration change, ce qui est exactement ce que promet un facteur III des 12 factors.
 
 ### Le bucket pattern pour les messages
 
@@ -351,7 +364,7 @@ Charger une conversation = lire **un** document (le dernier bucket). Remonter l'
 
 ### Kafka pour la cohérence inter-services
 
-`wely-users` ne connaît pas `wely-social`. Il publie `<env>.user-created`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP.
+`wely-users` ne connaît pas `wely-social`. Il publie `<env>.user-created`, et le service social matérialise le nœud de son côté. Le couplage est un contrat d'événement, pas un appel HTTP. Le broker est **Confluent Cloud** ; les environnements se partagent un cluster et se distinguent par le préfixe de topic.
 
 ```
 wely-users ──▶ <env>.user-created ──▶ wely-social ──▶ nœud Neo4j
@@ -376,7 +389,7 @@ Le projet est réparti en 10 dépôts indépendants, chacun avec son CI/CD et so
 | [`wely-social`](https://github.com/WelyLabs/wely-social) | Graphe social Neo4j, consommateur Kafka |
 | [`wely-chat`](https://github.com/WelyLabs/wely-chat) | Messagerie temps réel RSocket |
 | [`wely-events`](https://github.com/WelyLabs/wely-events) | Événements et abonnements |
-| [`wely-media`](https://github.com/WelyLabs/wely-media) | Stockage des photos (Garage S3), URL signées |
+| [`wely-media`](https://github.com/WelyLabs/wely-media) | Stockage des photos (S3, Cloudflare R2), URL signées |
 | [`wely-notifications`](https://github.com/WelyLabs/wely-notifications) | Centre de notifications, SSE, Web Push chiffré (RFC 8291) |
 | [`wely-identity`](https://github.com/WelyLabs/wely-identity) | Realm Keycloak + plugin `BusinessIdMapper` |
 | [`wely-gitops-infra`](https://github.com/WelyLabs/wely-gitops-infra) | Manifestes Kustomize, applications ArgoCD |
@@ -391,36 +404,22 @@ Chaque dépôt a son propre README détaillant son architecture interne, ses end
 
 Java 25 · Node 20+ · Docker
 
-### Option A — tout le cluster en une commande *(recommandé)*
+> **L'overlay `local` a été supprimé en novembre 2026**, avec les bases en cluster qu'il déployait.
+> Depuis que les cinq stockages sont managés, un cluster local ne pourrait plus amorcer qu'une
+> coquille : les services ont besoin d'un PostgreSQL, d'un Mongo, d'un Neo4j, d'un Kafka et d'un
+> bucket S3 joignables, et c'est désormais un compte, pas un StatefulSet. Les paliers gratuits de
+> Neon, Atlas, Aura, Confluent et R2 suffisent pour en ouvrir un jeu à soi.
 
-Prérequis : un Kubernetes local — [OrbStack](https://orbstack.dev/), Docker Desktop, Minikube ou k3d.
-
-```bash
-cd wely-gitops-infra
-kubectl apply -k overlays/local --server-side
-```
-
-Déploie les quatre bases, Keycloak, la gateway, le frontend et les quatre microservices, avec des secrets locaux préconfigurés.
-
-| | |
-|---|---|
-| Frontend | http://localhost |
-| Keycloak | http://localhost:8080 *(admin / admin)* |
-| Gateway | http://localhost:8081 |
+### Keycloak en conteneur, les services sur la machine
 
 ```bash
-kubectl delete -k overlays/local        # nettoyage
+docker compose up -d      # Keycloak seul, avec import automatique du realm
 ```
 
-### Option B — services en local, Keycloak en conteneur
-
-Pour développer sur un service en particulier.
-
-```bash
-docker compose up -d      # Keycloak, avec import automatique du realm
-```
-
-> Le `docker-compose.yml` ne démarre que Keycloak : les bases doivent être lancées séparément. Il n'y aura pas de compose complet — le chemin de démarrage local est `kubectl apply -k overlays/local`, et maintenir deux modes d'amorçage en parallèle ne produirait qu'une divergence de configuration.
+Puis chaque service lit sa configuration dans l'environnement — URI des bases, bootstrap Kafka,
+clés S3 — exactement comme son pod la reçoit du Secret de l'overlay. Aucune valeur par défaut ne
+pointe vers un stockage : un service incapable de nommer le sien refuse de démarrer plutôt que de
+se rabattre sur `localhost` ou, pire, sur les topics d'un autre environnement.
 
 Puis chaque service, avec le profil `dev` :
 
@@ -566,6 +565,8 @@ Il tourne en local, pas en CI : il a besoin de tous les dépôts, dont certains 
 
 **Un handler fourre-tout masque les statuts qu'il n'a pas prévus.** En écrivant le test qui vérifie que la documentation répond, j'ai découvert que `@ExceptionHandler(Exception.class)` interceptait aussi `ResponseStatusException` : **tout chemin inconnu renvoyait 500 au lieu de 404**, dans les quatre services. Un test de route nominale ne voit jamais ça — il faut interroger un chemin qui n'existe pas, ce qu'on ne pense pas à faire.
 
+**Un stockage qu'on héberge soi-même se paie en attention, pas en euros.** Les cinq bases du projet ont vécu un an en StatefulSets sur un Raspberry Pi : j'y ai écrit une sauvegarde nocturne par liens durs pour Garage, appris que les PVC d'un `volumeClaimTemplates` ne sont jamais ramassés, et perdu une base Keycloak dans une migration. Les déplacer chez des services managés a supprimé tout ce travail d'un coup — et la seule chose qu'il a fallu changer dans le code est l'absence de valeur par défaut : un service qui ne sait pas nommer son stockage doit refuser de démarrer, sans quoi il se rabat sur `localhost` et se déclare sain.
+
 **Une image multi-architecture ne doit rien compiler.** L'image du frontend est publiée pour amd64 et arm64, le cluster tournant sur Raspberry Pi. Comme le `Dockerfile` construisait le bundle Angular, `buildx` le compilait une fois par plateforme — la passe arm64 sous émulation QEMU. Deux minutes sont devenues six heures, puis un job bloqué. Le bundle est désormais compilé une fois, nativement, et l'image ne fait qu'une copie de fichiers.
 
 ---
@@ -579,12 +580,12 @@ Ce projet est un terrain d'apprentissage ; ces points sont identifiés et suivis
 | **La diffusion des messages est au mieux-effort** | `wely-chat` tourne à deux réplicas et diffuse par Kafka, chaque pod formant son propre groupe de consommation pour recevoir tous les enregistrements. La livraison temps réel n'est pas garantie pour autant : le message est en base avant d'être diffusé, et un client qui a raté une frame recharge la conversation. Une garantie *at-least-once* demanderait un outbox côté producteur. |
 | **Pas de pagination sur la recherche d'utilisateurs** | La requête Cypher parcourt tous les nœuds `User` et le filtrage est fait côté client. À remplacer par une recherche serveur paginée et indexée. |
 | **La classe d'intégration Neo4j coûte 15 à 50 min de CI** | Contre moins d'une minute pour PostgreSQL et les deux MongoDB, et ~2,5 min pour Kafka. La durée varie d'un run à l'autre dans ce rapport de un à trois. La lenteur est propre à l'image Neo4j, pas à Testcontainers, et la cause n'est pas élucidée. Si le coût devient gênant, la sortie est de réserver les tests d'intégration à `main` et aux PR. |
-| **Keycloak n'a pas de probes et il n'y a pas de `NetworkPolicy`** | Les six services applicatifs exposent Actuator et portent `startupProbe` / `livenessProbe` / `readinessProbe`, des `resources` et un `securityContext` non-root. Keycloak attend que son image soit épinglée, et rien ne restreint encore les communications entre pods. |
+| **La readiness ne regarde pas les bases** | Les six services applicatifs exposent Actuator et portent `startupProbe` / `livenessProbe` / `readinessProbe`, des `resources` et un `securityContext` non-root — mais la readiness exclut volontairement les indicateurs de base de données, pour qu'une base momentanément injoignable ne retire pas tous les pods du service. Un pod vert ne prouve donc pas que son stockage répond. |
 | **Les seuils de résilience de la gateway sont uniformes** | Un circuit breaker Resilience4j et un quota Redis par appelant protègent les cinq routes, mais avec la même configuration pour toutes — alors que `wely-social` interroge Neo4j et `wely-users` PostgreSQL, dont les latences normales diffèrent. À différencier quand il existera des mesures. |
 | **Pas d'outbox transactionnel** | Si la publication de `<env>.user-created` échoue après le commit Postgres, l'utilisateur existe sans nœud social et rien ne rattrape. |
-| **Un socle partagé, donc un rayon de souffle partagé** | Keycloak et Kafka existent en un seul exemplaire : une montée de version de l'un déconnecte tous les environnements à la fois. C'est le prix assumé d'un exemplaire unique sur une seule machine — à une réplique, le mutualiser ne coûte rien de plus que de le dupliquer. |
+| **Un socle partagé, donc un rayon de souffle partagé** | Keycloak existe en un seul exemplaire, et un seul cluster Confluent sert tous les environnements : une montée de version de l'un déconnecte tout le monde à la fois. C'est le prix assumé d'un exemplaire unique — les frontières restent celles des produits eux-mêmes, un realm par environnement, un préfixe de topic par environnement. |
 | **Pas de restauration de session silencieuse** | Le contrôle SSO silencieux charge Keycloak dans une iframe, que celui-ci refuse depuis une autre origine (`X-Frame-Options: SAMEORIGIN`). Le rétablir supposerait d'ouvrir `frame-ancestors` à l'origine de l'application, donc d'affaiblir la protection anti-clickjacking du fournisseur d'identité : l'utilisateur clique « Se connecter », et c'est le bon compromis. |
-| **Le démarrage local suppose un Kubernetes** | `kubectl apply -k overlays/local` déploie tout — bases, Keycloak, les six services et le frontend — mais il faut un cluster local. Le `docker-compose.yml` ne lance que Keycloak, et c'est assumé : un second mode d'amorçage complet divergerait du premier sans que rien ne le signale. |
+| **Le démarrage local suppose des comptes managés** | Depuis que les stockages ont quitté le cluster, il n'existe plus de commande unique qui lève tout le système sur une machine : il faut un jeu d'instances Neon, Atlas, Aura, Confluent et R2, même en palier gratuit. C'est la contrepartie directe du choix précédent, et elle se paie à l'accueil d'un nouvel arrivant. |
 
 ---
 
