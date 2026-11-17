@@ -15,7 +15,7 @@ Projet personnel, conçu et piloté de bout en bout, avec l'aide d'un assistant 
 | | |
 |---|---|
 | Identifiant | `demo@welylabs.app` |
-| Mot de passe | `Demo-Wely-2026` |
+| Mot de passe | `0iu5xaYOb9BTZPNlVsURg3aj` |
 
 Vous y êtes Camille : six amis, une semaine d'événements autour d'aujourd'hui, un fil d'événements à rejoindre, trois conversations, et une demande d'amitié en attente dans chaque sens.
 
